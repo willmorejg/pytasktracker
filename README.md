@@ -21,10 +21,12 @@ A task and activity tracking application with three operation modes: a web-based
 ## Features
 
 - Organize work into **Task Groups** and **Tasks**
-- Track **Activities** (work sessions) against tasks with automatic elapsed-time calculation
+- Track **Activities** (work sessions) against tasks with automatic elapsed-time calculation displayed as `HH:MM:SS`
+- Edit activity start and end times via an in-GUI date/time picker
 - Soft-delete and restore task groups and tasks
 - Three runtime modes: GUI, REST API, CLI
 - Embedded DuckDB database — no separate database server required
+- All dates and times stored and displayed in local time
 
 ## Requirements
 
@@ -97,10 +99,42 @@ When running in `rest` mode, the API is available at `http://localhost:<port>/ap
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/api/activities` | List all activities |
+| `GET` | `/api/activities` | List all activities (includes `elapsed_hms`) |
 | `POST` | `/api/activities` | Start a new activity |
 | `PUT` | `/api/activities` | Update an activity |
 | `PATCH` | `/api/activities/{id}/end` | End an activity (calculates elapsed time) |
+
+API response schema (`GET /api/activities`):
+
+```json
+[
+    {
+        "id": "string",
+        "group": "string",
+        "task": "string",
+        "started": "string | null", 
+        "ended": "string | null",
+        "elapsed_hms": "string | null",
+        "description": "string | null"
+    }
+]
+```
+
+Example `GET /api/activities` response item:
+
+```json
+[
+    {
+        "id": "2f153858-fb39-4ac8-95a2-f5ee8217f7f3",
+        "group": "Development",
+        "task": "Implement API",
+        "started": "2026-03-01T10:00:00",
+        "ended": "2026-03-01T10:25:30",
+        "elapsed_hms": "00:25:30",
+        "description": "Initial implementation"
+    }
+]
+```
 
 Interactive API docs are available at `http://localhost:<port>/docs`.
 
@@ -113,7 +147,7 @@ pytasktracker/
 │   ├── models.py           # SQLModel ORM models (TaskGroup, Task, Activity)
 │   ├── services.py         # Business logic layer
 │   ├── persistence.py      # Database access layer
-│   ├── datetime_utilities.py
+│   ├── datetime_utilities.py  # get_current_time(), build_datetime()
 │   ├── logging_config.py
 │   └── mods/
 │       ├── rest_api.py     # FastAPI routes
@@ -134,7 +168,8 @@ TaskGroup
     └── Activity (many per task)
         ├── started    (datetime, set on creation)
         ├── ended      (datetime, set on end)
-        └── elapsed    (int seconds, calculated on save)
+        ├── elapsed    (int seconds, persisted, calculated on save)
+        └── elapsed_hms (string HH:MM:SS, computed, not persisted)
 ```
 
 All entities carry `created_at` / `updated_at` timestamps. TaskGroups and Tasks support soft-delete via a `show` boolean flag.
@@ -147,6 +182,14 @@ pytest tests/
 
 # With coverage
 pytest tests/ --cov=src
+```
+
+## Type Checking
+
+The project uses [ty](https://docs.astral.sh/ty/) for static type checking (configured in `pyproject.toml` under `[tool.ty]`).
+
+```bash
+uv run ty check
 ```
 
 ## Logging

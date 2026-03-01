@@ -13,6 +13,7 @@
 # limitations under the License.
 """REST API tests for task group state changes."""
 
+from datetime import timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from uuid import uuid4
@@ -78,3 +79,31 @@ def test_task_group_enable_endpoint_sets_show_true(client):
     )
     assert enabled_group is not None
     assert enabled_group["show"] is True
+
+
+def test_activities_endpoint_returns_elapsed_hms(client):
+    """Verify the activities display payload exposes elapsed_hms instead of elapsed."""
+    task_group = rest_api.service.create_task_group(
+        name=f"Activities Group {uuid4()}", description="activities test"
+    )
+    task = rest_api.service.create_task(
+        task_group=task_group,
+        name=f"Activities Task {uuid4()}",
+        description="activities test",
+    )
+    activity = rest_api.service.create_activity(
+        task=task, description="API display test"
+    )
+    activity.ended = activity.started + timedelta(seconds=125)
+    rest_api.service.modify_activity(activity)
+
+    response = client.get("/activities")
+    assert response.status_code == 200
+
+    payload = response.json()
+    matching = [item for item in payload if item["id"] == activity.id]
+    assert matching
+
+    item = matching[0]
+    assert item["elapsed_hms"] == "00:02:05"
+    assert "elapsed" not in item

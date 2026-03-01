@@ -227,7 +227,7 @@ class Persistence:
                 .join(TaskGroup, col(Activity.group_id) == col(TaskGroup.id))
                 .where(Activity.id == activity_id)
             )
-            return session.exec(statement).first()  # type: ignore
+            return session.exec(statement).first()
 
     def fetch_tasks_by_task_group(
         self, task_group_id: str
