@@ -18,5 +18,9 @@
         "tests"
     ],
     "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true // Enable pytest framework for testing
+    "python.testing.pytestEnabled": true // Enable pytest framework for testing,
+    "sonarlint.connectedMode.project": {
+        "connectionId": "willmorejg",
+        "projectKey": "willmorejg_pytasktracker"
+    }
 }
