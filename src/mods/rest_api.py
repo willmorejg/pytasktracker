@@ -98,7 +98,6 @@ async def chrome_devtools_json() -> JSONResponse:
 ## Task Group Endpoints
 @app.get(
     "/task_groups",
-    response_model=list[TaskGroup],
     summary="Get all task groups with show is True",
     description="Retrieve a list of all task groups with show is True.",
 )
@@ -108,13 +107,11 @@ async def get_task_groups_visible() -> list[TaskGroup]:
     Returns:
         list[TaskGroup]: A list of all task groups with show is True.
     """
-    task_groups = service.get_all_task_groups(show=True)
-    return task_groups
+    return service.get_all_task_groups(show=True)
 
 
 @app.get(
     "/task_groups/all",
-    response_model=list[TaskGroup],
     summary="Get all task groups",
     description="Retrieve a list of all task groups.",
 )
@@ -124,13 +121,11 @@ async def get_task_groups() -> list[TaskGroup]:
     Returns:
         list[TaskGroup]: A list of all task groups.
     """
-    task_groups = service.get_all_task_groups(show=False)
-    return task_groups
+    return service.get_all_task_groups(show=False)
 
 
 @app.post(
     "/task_groups",
-    response_model=TaskGroup,
     summary="Create a new task group",
     description="Create a new task group with the provided name and description.",
 )
@@ -150,7 +145,6 @@ async def create_task_group(task_group: TaskGroup) -> TaskGroup:
 
 @app.put(
     "/task_groups",
-    response_model=TaskGroup,
     summary="Update an existing task group",
     description="Update an existing task group with the provided name and description.",
 )
@@ -168,7 +162,6 @@ async def update_task_group(task_group: TaskGroup) -> TaskGroup:
 
 @app.patch(
     "/task_groups/{task_group_id}",
-    response_model=bool,
     summary="Soft delete a task group",
     description="Soft delete an existing task group by setting its 'show' attribute to False.",
 )
@@ -187,7 +180,6 @@ async def soft_delete_task_group(task_group_id: str) -> bool:
 
 @app.patch(
     "/task_groups/{task_group_id}/enable",
-    response_model=bool,
     summary="Enable a task group",
     description="Enable an existing task group by setting its 'show' attribute to True.",
 )
@@ -207,7 +199,6 @@ async def enable_task_group(task_group_id: str) -> bool:
 ## Task Endpoints
 @app.get(
     "/tasks",
-    response_model=list[Task],
     summary="Get all tasks with show is True",
     description="Retrieve a list of all tasks with show is True.",
 )
@@ -217,13 +208,11 @@ async def get_tasks_visible() -> list[tuple[Task, TaskGroup]]:
     Returns:
         list[tuple[Task, TaskGroup]]: A list of all tasks with show is True.
     """
-    tasks = service.get_all_tasks(show=True)
-    return tasks
+    return service.get_all_tasks(show=True)
 
 
 @app.get(
     "/tasks/all",
-    response_model=list[tuple[Task, TaskGroup]],
     summary="Get all tasks",
     description="Retrieve a list of all tasks.",
 )
@@ -233,13 +222,11 @@ async def get_all_tasks() -> list[tuple[Task, TaskGroup]]:
     Returns:
         list[tuple[Task, TaskGroup]]: A list of all tasks.
     """
-    tasks = service.get_all_tasks(show=False)
-    return tasks
+    return service.get_all_tasks(show=False)
 
 
 @app.post(
     "/tasks",
-    response_model=Task,
     summary="Create a new task",
     description="Create a new task with the provided name and description.",
 )
@@ -260,7 +247,6 @@ async def create_task(task: Task, task_group: TaskGroup) -> Task:
 
 @app.put(
     "/tasks",
-    response_model=Task,
     summary="Update an existing task",
     description="Update an existing task with the provided name and description.",
 )
@@ -278,7 +264,6 @@ async def update_task(task: Task) -> Task:
 
 @app.patch(
     "/tasks/{task_id}",
-    response_model=bool,
     summary="Soft delete a task",
     description="Soft delete an existing task by setting its 'show' attribute to False.",
 )
@@ -297,7 +282,6 @@ async def soft_delete_task(task_id: str) -> bool:
 
 @app.patch(
     "/tasks/{task_id}/enable",
-    response_model=bool,
     summary="Enable a task",
     description="Enable an existing task by setting its 'show' attribute to True.",
 )
@@ -317,7 +301,6 @@ async def enable_task(task_id: str) -> bool:
 ## Activity Endpoints
 @app.get(
     "/activities",
-    response_model=list[ActivityDisplay],
     summary="Get all activities",
     description="Retrieve a list of all activities.",
 )
@@ -344,7 +327,6 @@ async def get_activities() -> list[ActivityDisplay]:
 
 @app.post(
     "/activities",
-    response_model=Activity,
     summary="Create a new activity",
     description="Create a new activity with the provided task and description.",
 )
@@ -363,7 +345,6 @@ async def create_activity(task: Task, description: str | None = None) -> Activit
 
 @app.put(
     "/activities",
-    response_model=Activity,
     summary="Update an existing activity",
     description="Update an existing activity with the provided task and description.",
 )
@@ -381,7 +362,6 @@ async def update_activity(activity: Activity) -> Activity:
 
 @app.patch(
     "/activities/{activity_id}/end",
-    response_model=Activity,
     summary="End an activity",
     description="End an existing activity by setting its 'ended' attribute to the current time.",
 )
