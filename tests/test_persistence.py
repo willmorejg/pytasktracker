@@ -87,14 +87,17 @@ class TestPersistence:
         assert activity.started is not None
         assert activity.ended is None
         assert activity.elapsed is None
+        assert activity.elapsed_hms is None
 
         activity.ended = activity.started + timedelta(seconds=120)
         activity = persistence.save(activity)
         assert activity.elapsed == 120
+        assert activity.elapsed_hms == "00:02:00"
 
         activity.elapsed = 9999
         activity = persistence.save(activity)
         assert activity.elapsed == 120
+        assert activity.elapsed_hms == "00:02:00"
 
         persistence.save(
             Activity(group_id=group.id, task_id=task.id, description="Second activity")

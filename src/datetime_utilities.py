@@ -19,5 +19,25 @@ import arrow
 
 
 def get_current_time() -> datetime:
-    """Get the current UTC time as a naive datetime object."""
-    return arrow.utcnow().naive
+    """Get the current local time as a naive datetime object."""
+    return arrow.utcnow().to("local").naive
+
+
+def build_datetime(
+    date_input,
+    time_input,
+    result_label,
+) -> datetime | None:
+    """Combine date and time inputs into a single datetime object."""
+    try:
+        combined_datetime_str = f"{date_input.value} {time_input.value}"
+        combined_datetime_obj = datetime.strptime(
+            combined_datetime_str, "%Y-%m-%d %H:%M"
+        )
+        result_label.set_text(
+            f"Selected Datetime: {combined_datetime_obj.isoformat(sep=' ')}"
+        )
+        return combined_datetime_obj
+    except ValueError:
+        result_label.set_text("Invalid date/time combination")
+        return None

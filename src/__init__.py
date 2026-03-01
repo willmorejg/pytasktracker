@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from .datetime_utilities import get_current_time
+from .datetime_utilities import build_datetime, get_current_time
 from .logging_config import configure_logging
 from .models import Activity, Task, TaskGroup
 from .persistence import Persistence
@@ -21,6 +21,7 @@ __version__ = "0.1.0"
 __all__ = [
     "configure_logging",
     "get_current_time",
+    "build_datetime",
     "Activity",
     "Task",
     "TaskGroup",

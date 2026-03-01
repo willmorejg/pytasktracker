@@ -34,3 +34,20 @@ PATCH http://localhost:8989/api/task_groups/4cddfddc-49c7-4c4d-a34a-caf862d8e19c
 Accept: application/json
 Content-Type: application/json
 ###
+
+GET http://localhost:8989/api/activities HTTP/1.1
+Accept: application/json
+Content-Type: application/json
+###
+
+# Example response item for GET /api/activities:
+# {
+#   "id": "2f153858-fb39-4ac8-95a2-f5ee8217f7f3",
+#   "group": "Development",
+#   "task": "Implement API",
+#   "started": "2026-03-01T10:00:00",
+#   "ended": "2026-03-01T10:25:30",
+#   "elapsed_hms": "00:25:30",
+#   "description": "Initial implementation"
+# }
+

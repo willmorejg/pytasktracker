@@ -13,19 +13,68 @@
 # limitations under the License.
 """GUI API module for handling GUI-related requests and responses."""
 
+from datetime import datetime
+
 from fastapi.responses import JSONResponse
 from nicegui import app, ui
 
+from datetime_utilities import build_datetime
 from logging_config import configure_logging
 from mods import rest_api
 
 logger = configure_logging()
+
+_PAGE_COLUMN_CLASSES = "items-center w-full"
+_PAGE_HEADING_CLASSES = "text-2xl font-bold mb-4"
 
 
 @app.get("/.well-known/appspecific/com.chrome.devtools.json", include_in_schema=False)
 async def chrome_devtools_json() -> JSONResponse:
     """Satisfy Chrome's DevTools discovery probe so it never reaches the 404 handler."""
     return JSONResponse({})
+
+
+async def datetime_component():
+    """Show a datetime picker dialog and return the selected datetime."""
+    return await pick_datetime_dialog(title="Select Date and Time")
+
+
+async def pick_datetime_dialog(
+    title: str,
+    initial_value: datetime | None = None,
+) -> datetime | None:
+    """Show a date+time picker and return a datetime when submitted."""
+    initial = initial_value or datetime.now()
+    initial_date = initial.strftime("%Y-%m-%d")
+    initial_time = initial.strftime("%H:%M")
+
+    with ui.dialog() as dialog, ui.card():
+        ui.label(title).classes("text-lg")
+        date_input = ui.date_input("Date", value=initial_date)
+        time_input = ui.time_input("Time", value=initial_time)
+        result_label = ui.label()
+
+        def submit_datetime():
+            selected_datetime = build_datetime(date_input, time_input, result_label)
+            if selected_datetime is None:
+                return
+            dialog.submit(selected_datetime)
+
+        date_input.on(
+            "change", lambda _e: build_datetime(date_input, time_input, result_label)
+        )
+        time_input.on(
+            "change", lambda _e: build_datetime(date_input, time_input, result_label)
+        )
+        build_datetime(date_input, time_input, result_label)
+
+        with ui.row().classes("justify-end w-full"):
+            ui.button("Cancel", color="red", on_click=lambda: dialog.submit(None))
+            ui.button("Submit", color="green", on_click=submit_datetime)
+
+    dialog.open()
+    result = await dialog
+    return result if isinstance(result, datetime) else None
 
 
 async def confirm_action_dialog(
@@ -44,6 +93,96 @@ async def confirm_action_dialog(
 
     dialog.open()
     return bool(await dialog)
+
+
+def get_activity_id_from_event(e) -> str | None:
+    """Extract an activity id from an event argument payload."""
+    activity_id = e.args if isinstance(e.args, str) else None
+    if activity_id is None:
+        ui.notify("Unable to determine selected activity", type="negative")
+    return activity_id
+
+
+def get_activity_with_refs_or_notify(activity_id: str):
+    """Get activity tuple (activity, task, group) or show a notification."""
+    activity_with_refs = rest_api.service.get_activity_by_id(activity_id)
+    if activity_with_refs is None:
+        ui.notify("Activity not found", type="negative")
+    return activity_with_refs
+
+
+async def end_activity_handler(e):
+    """Handle ending an activity from the activities table."""
+    activity_id = get_activity_id_from_event(e)
+    if activity_id is None:
+        return
+
+    activity_with_refs = get_activity_with_refs_or_notify(activity_id)
+    if activity_with_refs is None:
+        return
+
+    activity = activity_with_refs[0]
+    task = activity_with_refs[1]
+    confirmed = await confirm_action_dialog(
+        title="Confirm End Activity",
+        message=f"Are you sure you want to end activity '{task.name}'?",
+        confirm_text="Yes",
+        cancel_text="No",
+    )
+    if not confirmed:
+        return
+
+    rest_api.service.end_activity_by_id(activity_id=activity.id)
+    ui.notify("Activity ended")
+    ui.navigate.reload()
+
+
+async def edit_activity_datetime_handler(e, field_name: str):
+    """Handle editing started/ended datetime for an activity row."""
+    activity_id = get_activity_id_from_event(e)
+    if activity_id is None:
+        return
+
+    activity_with_refs = get_activity_with_refs_or_notify(activity_id)
+    if activity_with_refs is None:
+        return
+
+    activity = activity_with_refs[0]
+    task = activity_with_refs[1]
+    current_value = getattr(activity, field_name)
+    selected_datetime = await pick_datetime_dialog(
+        title=f"Edit {field_name.capitalize()} for '{task.name}'",
+        initial_value=current_value,
+    )
+    if selected_datetime is None:
+        return
+
+    confirmed = await confirm_action_dialog(
+        title="Confirm Datetime Change",
+        message=(
+            f"Update {field_name} for activity '{task.name}' to "
+            f"'{selected_datetime.isoformat(sep=' ')}'?"
+        ),
+        confirm_text="Yes",
+        cancel_text="No",
+    )
+    if not confirmed:
+        return
+
+    setattr(activity, field_name, selected_datetime)
+    rest_api.service.modify_activity(activity)
+    ui.notify(f"Activity {field_name} updated")
+    ui.navigate.reload()
+
+
+async def edit_started_handler(e):
+    """Handle editing activity started datetime."""
+    await edit_activity_datetime_handler(e, "started")
+
+
+async def edit_ended_handler(e):
+    """Handle editing activity ended datetime."""
+    await edit_activity_datetime_handler(e, "ended")
 
 
 def menu_navigate(path: str, drawer: ui.right_drawer):
@@ -105,8 +244,8 @@ def task_group_dialog():
             ui.navigate.reload()
 
         with ui.row():
-            ui.button("Submit", on_click=submit_task_group)
-            ui.button("Cancel", on_click=dialog.close)
+            ui.button("Submit", on_click=submit_task_group, color="green")
+            ui.button("Cancel", on_click=dialog.close, color="red")
 
     return dialog
 
@@ -164,8 +303,8 @@ def task_dialog():
             ui.navigate.reload()
 
         with ui.row():
-            ui.button("Submit", on_click=submit_task)
-            ui.button("Cancel", on_click=dialog.close)
+            ui.button("Submit", on_click=submit_task, color="green")
+            ui.button("Cancel", on_click=dialog.close, color="red")
 
     return dialog
 
@@ -230,8 +369,8 @@ def activities_dialog():
             ui.navigate.reload()
 
         with ui.row():
-            ui.button("Submit", on_click=submit_activity)
-            ui.button("Cancel", on_click=dialog.close)
+            ui.button("Submit", on_click=submit_activity, color="green")
+            ui.button("Cancel", on_click=dialog.close, color="red")
 
     return dialog
 
@@ -285,39 +424,40 @@ def task_groups():
         ui.navigate.reload()
 
     menu()
-    ui.label("Task Groups").classes("text-2xl font-bold mb-4")
+    with ui.column().classes(_PAGE_COLUMN_CLASSES):
+        ui.label("Task Groups").classes(_PAGE_HEADING_CLASSES)
 
-    dialog = task_group_dialog()
-    ui.button("Create New Task Group", on_click=dialog.open).classes("mb-4")
+        dialog = task_group_dialog()
+        ui.button("Create New Task Group", on_click=dialog.open).classes("mb-4")
 
-    table = ui.table(
-        title="Task Groups",
-        columns=[
-            {"name": "id", "label": "ID", "field": "id", "required": True},
-            {"name": "name", "label": "Name", "field": "name", "required": True},
-            {"name": "show", "label": "Show", "field": "show", "required": True},
-            {
-                "name": "toggle",
-                "label": "Action",
-                "field": "toggle",
-                "required": True,
-            },
-        ],
-        rows=task_group_rows,
-        row_key="id",
-    )
+        table = ui.table(
+            title="Task Groups",
+            columns=[
+                {"name": "id", "label": "ID", "field": "id", "required": True},
+                {"name": "name", "label": "Name", "field": "name", "required": True},
+                {"name": "show", "label": "Show", "field": "show", "required": True},
+                {
+                    "name": "toggle",
+                    "label": "Action",
+                    "field": "toggle",
+                    "required": True,
+                },
+            ],
+            rows=task_group_rows,
+            row_key="id",
+        )
 
-    table.add_slot(
-        "body-cell-toggle",
-        """
-        <q-td :props="props">
-            <a href="#" class="text-primary" @click.prevent="$parent.$emit('toggle_show', props.row.id)">
-                {{ props.value }}
-            </a>
-        </q-td>
-        """,
-    )
-    table.on("toggle_show", toggle_task_group_show)
+        table.add_slot(
+            "body-cell-toggle",
+            """
+            <q-td :props="props">
+                <a href="#" class="text-primary" @click.prevent="$parent.$emit('toggle_show', props.row.id)">
+                    {{ props.value }}
+                </a>
+            </q-td>
+            """,
+        )
+        table.on("toggle_show", toggle_task_group_show)
 
 
 @ui.page("/tasks")
@@ -363,40 +503,41 @@ def tasks():
         ui.navigate.reload()
 
     menu()
-    ui.label("Tasks").classes("text-2xl font-bold mb-4")
+    with ui.column().classes(_PAGE_COLUMN_CLASSES):
+        ui.label("Tasks").classes(_PAGE_HEADING_CLASSES)
 
-    dialog = task_dialog()
-    ui.button("Create New Task", on_click=dialog.open).classes("mb-4")
+        dialog = task_dialog()
+        ui.button("Create New Task", on_click=dialog.open).classes("mb-4")
 
-    table = ui.table(
-        title="Tasks",
-        columns=[
-            {"name": "id", "label": "ID", "field": "id", "required": True},
-            {"name": "group", "label": "Group", "field": "group", "required": True},
-            {"name": "name", "label": "Name", "field": "name", "required": True},
-            {"name": "show", "label": "Show", "field": "show", "required": True},
-            {
-                "name": "toggle",
-                "label": "Action",
-                "field": "toggle",
-                "required": True,
-            },
-        ],
-        rows=task_rows,
-        row_key="id",
-    )
+        table = ui.table(
+            title="Tasks",
+            columns=[
+                {"name": "id", "label": "ID", "field": "id", "required": True},
+                {"name": "group", "label": "Group", "field": "group", "required": True},
+                {"name": "name", "label": "Name", "field": "name", "required": True},
+                {"name": "show", "label": "Show", "field": "show", "required": True},
+                {
+                    "name": "toggle",
+                    "label": "Action",
+                    "field": "toggle",
+                    "required": True,
+                },
+            ],
+            rows=task_rows,
+            row_key="id",
+        )
 
-    table.add_slot(
-        "body-cell-toggle",
-        """
-        <q-td :props="props">
-            <a href="#" class="text-primary" @click.prevent="$parent.$emit('toggle_show', props.row.id)">
-                {{ props.value }}
-            </a>
-        </q-td>
-        """,
-    )
-    table.on("toggle_show", toggle_task_show)
+        table.add_slot(
+            "body-cell-toggle",
+            """
+            <q-td :props="props">
+                <a href="#" class="text-primary" @click.prevent="$parent.$emit('toggle_show', props.row.id)">
+                    {{ props.value }}
+                </a>
+            </q-td>
+            """,
+        )
+        table.on("toggle_show", toggle_task_show)
 
 
 @ui.page("/activities")
@@ -409,82 +550,83 @@ def activities():
             "task": task.name,
             "started": activity.started,
             "ended": activity.ended,
-            "elapsed": activity.elapsed,
+            "elapsed_hms": activity.elapsed_hms,
         }
         for activity, task, task_group in rest_api.service.get_all_activities()
     ]
 
-    async def end_activity(e):
-        activity_id = e.args if isinstance(e.args, str) else None
-        if activity_id is None:
-            ui.notify("Unable to determine selected activity", type="negative")
-            return
-
-        activity = rest_api.service.get_activity_by_id(activity_id)
-        if activity is None:
-            ui.notify("Activity not found", type="negative")
-            return
-
-        confirmed = await confirm_action_dialog(
-            title="Confirm End Activity",
-            message=f"Are you sure you want to end activity '{activity[1].name}'?",
-            confirm_text="Yes",
-            cancel_text="No",
-        )
-        if not confirmed:
-            return
-
-        rest_api.service.end_activity_by_id(activity_id=activity[0].id)
-        ui.notify("Activity ended")
-        ui.navigate.reload()
-
     menu()
-    ui.label("Activities").classes("text-2xl font-bold mb-4")
+    with ui.column().classes(_PAGE_COLUMN_CLASSES):
+        ui.label("Activities").classes(_PAGE_HEADING_CLASSES)
 
-    dialog = activities_dialog()
-    ui.button("Create New Activity", on_click=dialog.open).classes("mb-4")
+        dialog = activities_dialog()
+        ui.button("Create New Activity", on_click=dialog.open).classes("mb-4")
 
-    table = ui.table(
-        title="Activities",
-        columns=[
-            {"name": "id", "label": "ID", "field": "id", "required": True},
-            {"name": "group", "label": "Group", "field": "group", "required": True},
-            {"name": "task", "label": "Task", "field": "task", "required": True},
-            {
-                "name": "started",
-                "label": "Started",
-                "field": "started",
-                "required": True,
-            },
-            {"name": "ended", "label": "Ended", "field": "ended", "required": True},
-            {
-                "name": "elapsed",
-                "label": "Elapsed",
-                "field": "elapsed",
-                "required": True,
-            },
-            {
-                "name": "endactivity",
-                "label": "Action",
-                "field": "endactivity",
-                "required": True,
-            },
-        ],
-        rows=activities_rows,
-        row_key="id",
-    )
+        table = ui.table(
+            title="Activities",
+            columns=[
+                {"name": "id", "label": "ID", "field": "id", "required": True},
+                {"name": "group", "label": "Group", "field": "group", "required": True},
+                {"name": "task", "label": "Task", "field": "task", "required": True},
+                {
+                    "name": "started",
+                    "label": "Started",
+                    "field": "started",
+                    "required": True,
+                },
+                {"name": "ended", "label": "Ended", "field": "ended", "required": True},
+                {
+                    "name": "elapsed_hms",
+                    "label": "Elapsed",
+                    "field": "elapsed_hms",
+                    "required": True,
+                },
+                {
+                    "name": "end_activity",
+                    "label": "Action",
+                    "field": "end_activity",
+                    "required": True,
+                },
+            ],
+            rows=activities_rows,
+            row_key="id",
+        )
 
-    table.add_slot(
-        "body-cell-endactivity",
-        """
-        <q-td :props="props">
-            <a href="#" class="text-primary" @click.prevent="$parent.$emit('on-endactivity', props.row.id)">
-                End Activity
-            </a>
-        </q-td>
-        """,
-    )
-    table.on("on-endactivity", end_activity)
+        table.add_slot(
+            "body-cell-started",
+            """
+            <q-td :props="props">
+                <a href="#" class="text-primary" @click.prevent="$parent.$emit('on-edit_started', props.row.id)">
+                    {{ props.value ? props.value : 'Set Started' }}
+                </a>
+            </q-td>
+            """,
+        )
+        table.on("on-edit_started", edit_started_handler)
+
+        table.add_slot(
+            "body-cell-ended",
+            """
+            <q-td :props="props">
+                <a href="#" class="text-primary" @click.prevent="$parent.$emit('on-edit_ended', props.row.id)">
+                    {{ props.value ? props.value : 'Set Ended' }}
+                </a>
+            </q-td>
+            """,
+        )
+        table.on("on-edit_ended", edit_ended_handler)
+
+        table.add_slot(
+            "body-cell-end_activity",
+            """
+            <q-td :props="props">
+                <a href="#" class="text-primary" @click.prevent="$parent.$emit('on-end_activity', props.row.id)">
+                    End Activity
+                </a>
+            </q-td>
+            """,
+        )
+        table.on("on-end_activity", end_activity_handler)
 
 
 class GuiApp:
