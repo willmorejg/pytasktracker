@@ -16,6 +16,7 @@
 from datetime import datetime
 from uuid import uuid4
 
+from pydantic import computed_field
 from sqlmodel import Field, SQLModel, text
 
 from datetime_utilities import get_current_time
@@ -25,6 +26,7 @@ class TimestampMixin(SQLModel):
     """A mixin to add created_at and updated_at timestamp fields to a model."""
 
     created_at: datetime | None = Field(
+        default=None,
         sa_column_kwargs={"server_default": text("CURRENT_TIMESTAMP")},
         nullable=False,
         index=True,
@@ -46,6 +48,7 @@ class ElapsedTimeMixin(SQLModel):
     """A mixin to add elapsed time tracking to a model."""
 
     started: datetime | None = Field(
+        default=None,
         sa_column_kwargs={"server_default": text("CURRENT_TIMESTAMP")},
         nullable=False,
         index=True,
@@ -60,6 +63,19 @@ class ElapsedTimeMixin(SQLModel):
         sa_column_kwargs={"nullable": True},
         index=True,
     )
+
+    @computed_field(return_type=str | None)
+    @property
+    def elapsed_hms(self) -> str | None:
+        """Get the elapsed time as HH:MM:SS calculated from ended-started."""
+        if not self.started or not self.ended:
+            return None
+
+        total_seconds = int((self.ended - self.started).total_seconds())
+        sign = "-" if total_seconds < 0 else ""
+        hours, remainder = divmod(abs(total_seconds), 3600)
+        minutes, seconds = divmod(remainder, 60)
+        return f"{sign}{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 
 class TaskGroup(TimestampMixin, SoftDeleteMixin, SQLModel, table=True):

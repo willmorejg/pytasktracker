@@ -16,6 +16,7 @@
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
+from sqlmodel import SQLModel
 
 from logging_config import configure_logging
 from models import Activity, Task, TaskGroup
@@ -26,6 +27,18 @@ logger = configure_logging()
 app = FastAPI()
 
 service = Services()
+
+
+class ActivityDisplay(SQLModel):
+    """Display model for activity responses."""
+
+    id: str
+    group: str
+    task: str
+    started: str | None
+    ended: str | None
+    elapsed_hms: str | None
+    description: str | None
 
 
 def get_app() -> FastAPI:
@@ -304,18 +317,29 @@ async def enable_task(task_id: str) -> bool:
 ## Activity Endpoints
 @app.get(
     "/activities",
-    response_model=list[tuple[Activity, Task, TaskGroup]],
+    response_model=list[ActivityDisplay],
     summary="Get all activities",
     description="Retrieve a list of all activities.",
 )
-async def get_activities() -> list[tuple[Activity, Task, TaskGroup]]:
+async def get_activities() -> list[ActivityDisplay]:
     """Endpoint to retrieve all activities.
 
     Returns:
-        list[tuple[Activity, Task, TaskGroup]]: A list of all activities.
+        list[ActivityDisplay]: A list of all activities for display.
     """
     activities = service.get_all_activities()
-    return activities
+    return [
+        ActivityDisplay(
+            id=activity.id,
+            group=task_group.name,
+            task=task.name,
+            started=activity.started.isoformat() if activity.started else None,
+            ended=activity.ended.isoformat() if activity.ended else None,
+            elapsed_hms=activity.elapsed_hms,
+            description=activity.description,
+        )
+        for activity, task, task_group in activities
+    ]
 
 
 @app.post(
