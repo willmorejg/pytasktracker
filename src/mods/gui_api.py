@@ -1,0 +1,508 @@
+# Copyright 2026 James G Willmore
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""GUI API module for handling GUI-related requests and responses."""
+
+from fastapi.responses import JSONResponse
+from nicegui import app, ui
+
+from logging_config import configure_logging
+from mods import rest_api
+
+logger = configure_logging()
+
+
+@app.get("/.well-known/appspecific/com.chrome.devtools.json", include_in_schema=False)
+async def chrome_devtools_json() -> JSONResponse:
+    """Satisfy Chrome's DevTools discovery probe so it never reaches the 404 handler."""
+    return JSONResponse({})
+
+
+async def confirm_action_dialog(
+    title: str,
+    message: str,
+    confirm_text: str = "Confirm",
+    cancel_text: str = "Cancel",
+) -> bool:
+    """Show a reusable confirmation dialog and return True when confirmed."""
+    with ui.dialog() as dialog, ui.card():
+        ui.label(title).classes("text-lg")
+        ui.label(message)
+        with ui.row().classes("justify-end w-full"):
+            ui.button(cancel_text, color="red", on_click=lambda: dialog.submit(False))
+            ui.button(confirm_text, color="green", on_click=lambda: dialog.submit(True))
+
+    dialog.open()
+    return bool(await dialog)
+
+
+def menu_navigate(path: str, drawer: ui.right_drawer):
+    """Navigate to a different page in the GUI."""
+    ui.navigate.to(path)
+    if drawer:
+        drawer.set_value(False)
+
+
+def menu():
+    """Menu for the GUI."""
+    with ui.right_drawer().classes("bg-blue-100") as right_drawer:
+        ui.menu_item(
+            "Manage Task Groups",
+            on_click=lambda: menu_navigate("/task_groups", right_drawer),
+        )
+        ui.menu_item(
+            "Manage Tasks",
+            on_click=lambda: menu_navigate("/tasks", right_drawer),
+        )
+        ui.menu_item(
+            "Manage Activities",
+            on_click=lambda: menu_navigate("/activities", right_drawer),
+        )
+
+    right_drawer.set_value(False)
+
+    with ui.header().classes("items-center"):
+        ui.link("My Application", target="/").style(
+            "font-size: 1.5em; font-weight: bold; color: black; text-decoration: none;"
+        )
+        # Add a spacer to push subsequent elements to the right
+        ui.space()
+        # The button to toggle the right drawer, with a menu icon
+        ui.button(
+            on_click=lambda: right_drawer.set_value(not right_drawer.value), icon="menu"
+        ).props("flat color=black").classes("ml-2")
+
+
+def task_group_dialog():
+    """Dialog for creating a new task group."""
+    with ui.dialog() as dialog, ui.card():
+        ui.label("Create Task Group").classes("text-lg")
+
+        name_input = ui.input("Name")
+        description_input = ui.input("Description")
+
+        def submit_task_group():
+            if not name_input.value:
+                ui.notify("Name is required", type="negative")
+                return
+
+            rest_api.service.create_task_group(
+                name=name_input.value,
+                description=description_input.value or None,
+            )
+            ui.notify("Task group created")
+            dialog.close()
+            ui.navigate.reload()
+
+        with ui.row():
+            ui.button("Submit", on_click=submit_task_group)
+            ui.button("Cancel", on_click=dialog.close)
+
+    return dialog
+
+
+def task_dialog():
+    """Dialog for creating a new task."""
+    with ui.dialog() as dialog, ui.card():
+        ui.label("Create Task").classes("text-lg")
+
+        task_groups_options = rest_api.service.get_all_task_groups(show=True)
+        task_groups_options_objects = {tg.id: tg.name for tg in task_groups_options}
+
+        def task_group_change_handler(e):
+            selected_id = e.value
+            logger.info(f"Selected task group ID: {selected_id}")
+            selected_name = task_groups_options_objects.get(selected_id, "Unknown")
+            logger.info(f"Selected task group name: {selected_name}")
+            selected = next(
+                (tg for tg in task_groups_options if tg.id == selected_id), None
+            )
+            if selected:
+                logger.info(f"Selected task group object: {selected}")
+            else:
+                logger.warning(f"No task group found for ID: {selected_id}")
+
+        task_group_input = ui.select(
+            task_groups_options_objects,
+            label="Task Group",
+            value=None,
+            on_change=task_group_change_handler,
+        )
+        name_input = ui.input("Name")
+        description_input = ui.input("Description")
+
+        def submit_task():
+            if not name_input.value:
+                ui.notify("Name is required", type="negative")
+                return
+
+            selected_task_group = next(
+                (tg for tg in task_groups_options if tg.id == task_group_input.value),
+                None,
+            )
+            if selected_task_group is None:
+                ui.notify("Invalid task group selected", type="negative")
+                return
+
+            rest_api.service.create_task(
+                name=name_input.value,
+                description=description_input.value or None,
+                task_group=selected_task_group,
+            )
+            ui.notify("Task created")
+            dialog.close()
+            ui.navigate.reload()
+
+        with ui.row():
+            ui.button("Submit", on_click=submit_task)
+            ui.button("Cancel", on_click=dialog.close)
+
+    return dialog
+
+
+def activities_dialog():
+    """Dialog for creating a new activity."""
+    with ui.dialog() as dialog, ui.card():
+        ui.label("Create Activity").classes("text-lg")
+
+        task_options = rest_api.service.get_all_tasks(show=True)
+        task_options_objects = {
+            task.id: f"{task_group.name} - {task.name}"
+            for task, task_group in task_options
+        }
+
+        def task_change_handler(e):
+            selected_id = e.value
+            logger.info(f"Selected task ID: {selected_id}")
+            selected_name = task_options_objects.get(selected_id, "Unknown")
+            logger.info(f"Selected task name: {selected_name}")
+            selected = next(
+                (
+                    (task, task_group)
+                    for task, task_group in task_options
+                    if task.id == selected_id
+                ),
+                None,
+            )
+            if selected:
+                logger.info(f"Selected task object: {selected}")
+            else:
+                logger.warning(f"No task found for ID: {selected_id}")
+
+        task_input = ui.select(
+            task_options_objects,
+            label="Task",
+            value=None,
+            on_change=task_change_handler,
+        )
+
+        description_input = ui.input("Description")
+
+        def submit_activity():
+            selected_task = next(
+                (
+                    (task, task_group)
+                    for task, task_group in task_options
+                    if task.id == task_input.value
+                ),
+                None,
+            )
+            if selected_task is None:
+                ui.notify("Invalid task selected", type="negative")
+                return
+
+            rest_api.service.create_activity(
+                task=selected_task[0],
+                description=description_input.value or None,
+            )
+            ui.notify("Activity created")
+            dialog.close()
+            ui.navigate.reload()
+
+        with ui.row():
+            ui.button("Submit", on_click=submit_activity)
+            ui.button("Cancel", on_click=dialog.close)
+
+    return dialog
+
+
+@ui.page("/")
+def index():
+    """Index page for the GUI."""
+    ui.label("Welcome to PyTaskTracker!").classes("text-2xl font-bold")
+    menu()
+
+
+@ui.page("/task_groups")
+def task_groups():
+    """Task groups page for the GUI."""
+    task_group_rows = [
+        {
+            "id": tg.id,
+            "name": tg.name,
+            "show": tg.show,
+            "toggle": "Disable" if tg.show else "Enable",
+        }
+        for tg in rest_api.service.get_all_task_groups(show=False)
+    ]
+
+    async def toggle_task_group_show(e):
+        task_group_id = e.args if isinstance(e.args, str) else None
+        if task_group_id is None:
+            ui.notify("Unable to determine selected task group", type="negative")
+            return
+
+        task_group = rest_api.service.get_task_group_by_id(task_group_id)
+        if task_group is None:
+            ui.notify("Task group not found", type="negative")
+            return
+
+        action = "disable" if task_group.show else "enable"
+        confirmed = await confirm_action_dialog(
+            title="Confirm Change",
+            message=f"Are you sure you want to {action} task group '{task_group.name}'?",
+            confirm_text="Yes",
+            cancel_text="No",
+        )
+        if not confirmed:
+            return
+
+        if task_group.show:
+            rest_api.service.soft_delete_task_group_by_id(task_group_id=task_group.id)
+        else:
+            rest_api.service.undelete_task_group_by_id(task_group_id=task_group.id)
+        ui.notify("Task group updated")
+        ui.navigate.reload()
+
+    menu()
+    ui.label("Task Groups").classes("text-2xl font-bold mb-4")
+
+    dialog = task_group_dialog()
+    ui.button("Create New Task Group", on_click=dialog.open).classes("mb-4")
+
+    table = ui.table(
+        title="Task Groups",
+        columns=[
+            {"name": "id", "label": "ID", "field": "id", "required": True},
+            {"name": "name", "label": "Name", "field": "name", "required": True},
+            {"name": "show", "label": "Show", "field": "show", "required": True},
+            {
+                "name": "toggle",
+                "label": "Action",
+                "field": "toggle",
+                "required": True,
+            },
+        ],
+        rows=task_group_rows,
+        row_key="id",
+    )
+
+    table.add_slot(
+        "body-cell-toggle",
+        """
+        <q-td :props="props">
+            <a href="#" class="text-primary" @click.prevent="$parent.$emit('toggle_show', props.row.id)">
+                {{ props.value }}
+            </a>
+        </q-td>
+        """,
+    )
+    table.on("toggle_show", toggle_task_group_show)
+
+
+@ui.page("/tasks")
+def tasks():
+    """Tasks page for the GUI."""
+    task_rows = [
+        {
+            "id": task.id,
+            "group": task_group.name,
+            "name": task.name,
+            "show": task.show,
+            "toggle": "Disable" if task.show else "Enable",
+        }
+        for task, task_group in rest_api.service.get_all_tasks(show=False)
+    ]
+
+    async def toggle_task_show(e):
+        task_id = e.args if isinstance(e.args, str) else None
+        if task_id is None:
+            ui.notify("Unable to determine selected task", type="negative")
+            return
+
+        task = rest_api.service.get_task_by_id(task_id)
+        if task is None:
+            ui.notify("Task not found", type="negative")
+            return
+
+        action = "disable" if task[0].show else "enable"
+        confirmed = await confirm_action_dialog(
+            title="Confirm Change",
+            message=f"Are you sure you want to {action} task '{task[0].name}'?",
+            confirm_text="Yes",
+            cancel_text="No",
+        )
+        if not confirmed:
+            return
+
+        if task[0].show:
+            rest_api.service.soft_delete_task_by_id(task_id=task[0].id)
+        else:
+            rest_api.service.undelete_task_by_id(task_id=task[0].id)
+        ui.notify("Task updated")
+        ui.navigate.reload()
+
+    menu()
+    ui.label("Tasks").classes("text-2xl font-bold mb-4")
+
+    dialog = task_dialog()
+    ui.button("Create New Task", on_click=dialog.open).classes("mb-4")
+
+    table = ui.table(
+        title="Tasks",
+        columns=[
+            {"name": "id", "label": "ID", "field": "id", "required": True},
+            {"name": "group", "label": "Group", "field": "group", "required": True},
+            {"name": "name", "label": "Name", "field": "name", "required": True},
+            {"name": "show", "label": "Show", "field": "show", "required": True},
+            {
+                "name": "toggle",
+                "label": "Action",
+                "field": "toggle",
+                "required": True,
+            },
+        ],
+        rows=task_rows,
+        row_key="id",
+    )
+
+    table.add_slot(
+        "body-cell-toggle",
+        """
+        <q-td :props="props">
+            <a href="#" class="text-primary" @click.prevent="$parent.$emit('toggle_show', props.row.id)">
+                {{ props.value }}
+            </a>
+        </q-td>
+        """,
+    )
+    table.on("toggle_show", toggle_task_show)
+
+
+@ui.page("/activities")
+def activities():
+    """Activities page for the GUI."""
+    activities_rows = [
+        {
+            "id": activity.id,
+            "group": task_group.name,
+            "task": task.name,
+            "started": activity.started,
+            "ended": activity.ended,
+            "elapsed": activity.elapsed,
+        }
+        for activity, task, task_group in rest_api.service.get_all_activities()
+    ]
+
+    async def end_activity(e):
+        activity_id = e.args if isinstance(e.args, str) else None
+        if activity_id is None:
+            ui.notify("Unable to determine selected activity", type="negative")
+            return
+
+        activity = rest_api.service.get_activity_by_id(activity_id)
+        if activity is None:
+            ui.notify("Activity not found", type="negative")
+            return
+
+        confirmed = await confirm_action_dialog(
+            title="Confirm End Activity",
+            message=f"Are you sure you want to end activity '{activity[1].name}'?",
+            confirm_text="Yes",
+            cancel_text="No",
+        )
+        if not confirmed:
+            return
+
+        rest_api.service.end_activity_by_id(activity_id=activity[0].id)
+        ui.notify("Activity ended")
+        ui.navigate.reload()
+
+    menu()
+    ui.label("Activities").classes("text-2xl font-bold mb-4")
+
+    dialog = activities_dialog()
+    ui.button("Create New Activity", on_click=dialog.open).classes("mb-4")
+
+    table = ui.table(
+        title="Activities",
+        columns=[
+            {"name": "id", "label": "ID", "field": "id", "required": True},
+            {"name": "group", "label": "Group", "field": "group", "required": True},
+            {"name": "task", "label": "Task", "field": "task", "required": True},
+            {
+                "name": "started",
+                "label": "Started",
+                "field": "started",
+                "required": True,
+            },
+            {"name": "ended", "label": "Ended", "field": "ended", "required": True},
+            {
+                "name": "elapsed",
+                "label": "Elapsed",
+                "field": "elapsed",
+                "required": True,
+            },
+            {
+                "name": "endactivity",
+                "label": "Action",
+                "field": "endactivity",
+                "required": True,
+            },
+        ],
+        rows=activities_rows,
+        row_key="id",
+    )
+
+    table.add_slot(
+        "body-cell-endactivity",
+        """
+        <q-td :props="props">
+            <a href="#" class="text-primary" @click.prevent="$parent.$emit('on-endactivity', props.row.id)">
+                End Activity
+            </a>
+        </q-td>
+        """,
+    )
+    table.on("on-endactivity", end_activity)
+
+
+class GuiApp:
+    """GUI API class for handling GUI-related requests and responses."""
+
+    def __init__(self):
+        """Initialize the GUI API."""
+        self.rest_api_app = rest_api.get_app()
+        self.app = app
+        self.app.include_router(self.rest_api_app.router, prefix="/api")
+
+    def start_gui(self, port: int = 8989, host: str = "127.0.0.1"):
+        """Start the GUI. NOTE: there is an issue using 'reload=True' with the FastAPI router, so we set it to False for now."""
+        ui.run(
+            port=port,
+            host=host,
+            reload=False,
+            storage_secret="pytasktracker_secret",
+            fastapi_docs=True,
+            reconnect_timeout=30.0,
+        )
