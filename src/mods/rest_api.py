@@ -13,6 +13,8 @@
 # limitations under the License.
 """REST API module for handling RESTful requests and responses."""
 
+from datetime import datetime
+
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
@@ -376,3 +378,40 @@ async def end_activity(activity_id: str) -> bool:
     """
     service.end_activity_by_id(activity_id=activity_id)
     return True
+
+
+async def get_filtered_activities(
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
+    exact_start: bool = False,
+    exact_end: bool = False,
+) -> list[ActivityDisplay]:
+    """Endpoint to retrieve activities filtered by start and end date.
+
+    Args:
+        start_date (datetime | None): The start date to filter activities (inclusive).
+        end_date (datetime | None): The end date to filter activities (inclusive).
+        exact_start (bool): Whether to filter by the exact start date or adjust to the start of the day.
+        exact_end (bool): Whether to filter by the exact end date or adjust to the end of the day.
+
+    Returns:
+        list[ActivityDisplay]: A list of activities for display that match the filter criteria.
+    """
+    activities = service.get_filtered_activities(
+        start_date=start_date,
+        end_date=end_date,
+        exact_start=exact_start,
+        exact_end=exact_end,
+    )
+    return [
+        ActivityDisplay(
+            id=activity.id,
+            group=task_group.name,
+            task=task.name,
+            started=activity.started.isoformat() if activity.started else None,
+            ended=activity.ended.isoformat() if activity.ended else None,
+            elapsed_hms=activity.elapsed_hms,
+            description=activity.description,
+        )
+        for activity, task, task_group in activities
+    ]
