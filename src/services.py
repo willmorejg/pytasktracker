@@ -222,7 +222,7 @@ class Services:
             description=description,
             task_id=task.id,
             group_id=task.group_id,
-            started=get_current_time(),
+            started=get_current_time().replace(microsecond=0),
         )
         return self.persistence.save(activity)
 
