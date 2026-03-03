@@ -13,7 +13,9 @@
 # limitations under the License.
 """Service layer for the application."""
 
-from datetime_utilities import get_current_time
+from datetime import datetime
+
+from datetime_utilities import end_of_day, get_current_time, start_of_day
 from logging_config import configure_logging
 from models import Activity, Task, TaskGroup
 from persistence import Persistence
@@ -268,6 +270,63 @@ class Services:
             list[tuple[Activity, Task, TaskGroup]]: A list of all Activity objects with their associated Task and TaskGroup.
         """
         return self.persistence.fetch_all_activities()
+
+    def get_filtered_activities(
+        self,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+        exact_start: bool = False,
+        exact_end: bool = False,
+    ) -> list[tuple[Activity, Task, TaskGroup]]:
+        """Get activities filtered by start and end date. Will default for start of current day and end with end of current day.
+
+        Args:
+            start_date (datetime | None): The start date to filter activities (inclusive).
+            end_date (datetime | None): The end date to filter activities (inclusive).
+            exact_start (bool): If True, filter activities that started exactly on the start date.
+            exact_end (bool): If True, filter activities that ended exactly on the end date.
+
+        Returns:
+            list[tuple[Activity, Task, TaskGroup]]: A list of Activity objects with their associated Task and TaskGroup that match the filter criteria.
+        """
+        # make sure dates are not None and adjust to start or end of day if not exact
+        if start_date is None:
+            filtered_start_date = get_current_time()
+        else:
+            filtered_start_date = start_date
+
+        if end_date is None:
+            filtered_end_date = get_current_time()
+        else:
+            filtered_end_date = end_date
+
+        filtered_start_date = self._determine_filter_date(
+            filtered_start_date, exact_start, start_of_day_flag=True
+        )
+        filtered_end_date = self._determine_filter_date(
+            filtered_end_date, exact_end, start_of_day_flag=False
+        )
+
+        return self.persistence.fetch_filtered_activities(
+            filtered_start_date, filtered_end_date
+        )
+
+    def _determine_filter_date(
+        self, value: datetime, exact: bool, start_of_day_flag: bool
+    ) -> datetime:
+        """Determine the filter date based on the input value and whether it should be exact.
+
+        Args:
+            value (datetime): The input datetime value to determine the filter date from.
+            exact (bool): Whether to use the exact datetime or adjust it to the start or end of the day.
+            start_of_day_flag (bool): Whether to adjust to the start of the day (True) or end of the day (False) if not exact.
+
+        Returns:
+            datetime: The determined filter datetime.
+        """
+        if exact:
+            return value
+        return start_of_day(value) if start_of_day_flag else end_of_day(value)
 
     def get_activity_by_id(
         self, activity_id: str

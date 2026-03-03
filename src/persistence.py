@@ -14,6 +14,7 @@
 """Persistence layer for the application."""
 
 import os
+from datetime import datetime
 from typing import TypeVar
 
 from sqlmodel import Session, SQLModel, col, create_engine, select
@@ -202,6 +203,36 @@ class Persistence:
                 select(Activity, Task, TaskGroup)
                 .join(Task, col(Activity.task_id) == col(Task.id))
                 .join(TaskGroup, col(Activity.group_id) == col(TaskGroup.id))
+            )
+            return session.exec(statement).all()  # type: ignore
+
+    def fetch_filtered_activities(
+        self,
+        started_start_date: datetime,
+        started_end_date: datetime,
+    ) -> list[tuple[Activity, Task, TaskGroup]]:
+        """Fetch all Activities within a date range, joined with their Task and TaskGroup.
+
+        Args:
+            started_start_date (datetime): The start date for filtering activities.
+            started_end_date (datetime): The end date for filtering activities.
+
+        Returns:
+            list[tuple[Activity, Task, TaskGroup]]: The activities with their task and task group.
+        """
+        logger.info(
+            "Fetching filtered activities from database",
+            extra={"start_date": started_start_date, "end_date": started_end_date},
+        )
+        with self.get_session() as session:
+            statement = (
+                select(Activity, Task, TaskGroup)
+                .join(Task, col(Activity.task_id) == col(Task.id))
+                .join(TaskGroup, col(Activity.group_id) == col(TaskGroup.id))
+                .where(
+                    (col(Activity.started) >= started_start_date),
+                    (col(Activity.started) <= started_end_date),
+                )
             )
             return session.exec(statement).all()  # type: ignore
 

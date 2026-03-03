@@ -23,6 +23,16 @@ def get_current_time() -> datetime:
     return arrow.utcnow().to("local").naive
 
 
+def start_of_day(value: datetime) -> datetime:
+    """Get the start of the day for a given datetime."""
+    return value.replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def end_of_day(value: datetime) -> datetime:
+    """Get the end of the day for a given datetime."""
+    return value.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+
 def build_datetime(
     date_input,
     time_input,

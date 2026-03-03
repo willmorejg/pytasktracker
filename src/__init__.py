@@ -11,7 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from .datetime_utilities import build_datetime, get_current_time
+from .datetime_utilities import (
+    build_datetime,
+    end_of_day,
+    get_current_time,
+    start_of_day,
+)
 from .logging_config import configure_logging
 from .models import Activity, Task, TaskGroup
 from .persistence import Persistence
@@ -22,6 +27,8 @@ __all__ = [
     "configure_logging",
     "get_current_time",
     "build_datetime",
+    "end_of_day",
+    "start_of_day",
     "Activity",
     "Task",
     "TaskGroup",
