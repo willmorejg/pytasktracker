@@ -61,6 +61,10 @@ class Persistence:
             model (T): The object to save.
         """
         if isinstance(model, Activity):
+            if model.started is not None:
+                model.started = model.started.replace(microsecond=0)
+            if model.ended is not None:
+                model.ended = model.ended.replace(microsecond=0)
             model.elapsed = (
                 int((model.ended - model.started).total_seconds())
                 if model.started and model.ended

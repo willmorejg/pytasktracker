@@ -185,6 +185,85 @@ async def edit_ended_handler(e):
     await edit_activity_datetime_handler(e, "ended")
 
 
+def format_elapsed_hms(total_seconds: int) -> str:
+    """Format elapsed seconds as HH:MM:SS."""
+    sign = "-" if total_seconds < 0 else ""
+    hours, remainder = divmod(abs(total_seconds), 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{sign}{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
+def parse_filter_datetime(
+    date_value: str | None,
+    time_value: str | None,
+    label: str,
+) -> tuple[datetime | None, bool]:
+    """Parse date/time filter input and return datetime with exactness flag."""
+    if not date_value:
+        ui.notify(f"{label} date is required", type="negative")
+        return None, False
+
+    clean_time = (time_value or "").strip()
+    if clean_time:
+        try:
+            return (
+                datetime.strptime(f"{date_value} {clean_time}", "%Y-%m-%d %H:%M"),
+                True,
+            )
+        except ValueError:
+            ui.notify(
+                f"Invalid {label.lower()} time format. Use HH:MM.",
+                type="negative",
+            )
+            return None, False
+
+    return datetime.strptime(date_value, "%Y-%m-%d"), False
+
+
+def build_activity_rows(
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
+    exact_start: bool = False,
+    exact_end: bool = False,
+) -> list[dict]:
+    """Build activities rows and append an elapsed total summary row."""
+    activity_rows: list[dict] = []
+    total_elapsed_seconds = 0
+    for activity, task, task_group in rest_api.service.get_filtered_activities(
+        start_date=start_date,
+        end_date=end_date,
+        exact_start=exact_start,
+        exact_end=exact_end,
+    ):
+        elapsed_seconds = activity.elapsed or 0
+        total_elapsed_seconds += elapsed_seconds
+        activity_rows.append(
+            {
+                "id": activity.id,
+                "group": task_group.name,
+                "task": task.name,
+                "started": activity.started,
+                "ended": activity.ended,
+                "elapsed_hms": activity.elapsed_hms,
+                "is_summary": False,
+            }
+        )
+
+    activity_rows.append(
+        {
+            "id": "__summary__",
+            "group": "",
+            "task": "Total",
+            "started": "",
+            "ended": "",
+            "elapsed_hms": format_elapsed_hms(total_elapsed_seconds),
+            "is_summary": True,
+        }
+    )
+
+    return activity_rows
+
+
 def menu_navigate(path: str, drawer: ui.right_drawer):
     """Navigate to a different page in the GUI."""
     ui.navigate.to(path)
@@ -433,8 +512,13 @@ def task_groups():
         table = ui.table(
             title="Task Groups",
             columns=[
-                {"name": "id", "label": "ID", "field": "id", "required": True},
-                {"name": "name", "label": "Name", "field": "name", "required": True},
+                {
+                    "name": "name",
+                    "label": "Name",
+                    "field": "name",
+                    "required": True,
+                    "sortable": True,
+                },
                 {"name": "show", "label": "Show", "field": "show", "required": True},
                 {
                     "name": "toggle",
@@ -512,9 +596,20 @@ def tasks():
         table = ui.table(
             title="Tasks",
             columns=[
-                {"name": "id", "label": "ID", "field": "id", "required": True},
-                {"name": "group", "label": "Group", "field": "group", "required": True},
-                {"name": "name", "label": "Name", "field": "name", "required": True},
+                {
+                    "name": "group",
+                    "label": "Group",
+                    "field": "group",
+                    "required": True,
+                    "sortable": True,
+                },
+                {
+                    "name": "name",
+                    "label": "Name",
+                    "field": "name",
+                    "required": True,
+                    "sortable": True,
+                },
                 {"name": "show", "label": "Show", "field": "show", "required": True},
                 {
                     "name": "toggle",
@@ -543,60 +638,129 @@ def tasks():
 @ui.page("/activities")
 def activities():
     """Activities page for the GUI."""
-    activities_rows = [
-        {
-            "id": activity.id,
-            "group": task_group.name,
-            "task": task.name,
-            "started": activity.started,
-            "ended": activity.ended,
-            "elapsed_hms": activity.elapsed_hms,
-        }
-        for activity, task, task_group in rest_api.service.get_filtered_activities()
-    ]
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    activities_rows = build_activity_rows(
+        start_date=datetime.strptime(today, "%Y-%m-%d"),
+        end_date=datetime.strptime(today, "%Y-%m-%d"),
+    )
 
     menu()
     with ui.column().classes(_PAGE_COLUMN_CLASSES):
         ui.label("Activities").classes(_PAGE_HEADING_CLASSES)
 
         dialog = activities_dialog()
-        ui.button("Create New Activity", on_click=dialog.open).classes("mb-4")
 
-        table = ui.table(
-            title="Activities",
-            columns=[
-                {"name": "id", "label": "ID", "field": "id", "required": True},
-                {"name": "group", "label": "Group", "field": "group", "required": True},
-                {"name": "task", "label": "Task", "field": "task", "required": True},
-                {
-                    "name": "started",
-                    "label": "Started",
-                    "field": "started",
-                    "required": True,
-                },
-                {"name": "ended", "label": "Ended", "field": "ended", "required": True},
-                {
-                    "name": "elapsed_hms",
-                    "label": "Elapsed",
-                    "field": "elapsed_hms",
-                    "required": True,
-                },
-                {
-                    "name": "end_activity",
-                    "label": "Action",
-                    "field": "end_activity",
-                    "required": True,
-                },
-            ],
-            rows=activities_rows,
-            row_key="id",
-        )
+        with ui.row().classes("mb-2"):
+            ui.button("Create New Activity", on_click=dialog.open)
+
+        with ui.card().classes("w-full max-w-6xl p-4"):
+            with ui.row().classes("items-end gap-2"):
+                ui.label("Filter Activities")
+                start_date_input = ui.date_input("Start Date", value=today)
+                start_time_input = ui.input("Start Time (optional)").props(
+                    "type=time clearable"
+                )
+                end_date_input = ui.date_input("End Date", value=today)
+                end_time_input = ui.input("End Time (optional)").props(
+                    "type=time clearable"
+                )
+
+            filter_actions_row = ui.row().classes("mb-2 mt-2 gap-2")
+
+            table = ui.table(
+                title="Activities",
+                columns=[
+                    {
+                        "name": "group",
+                        "label": "Group",
+                        "field": "group",
+                        "required": True,
+                        "sortable": True,
+                    },
+                    {
+                        "name": "task",
+                        "label": "Task",
+                        "field": "task",
+                        "required": True,
+                        "sortable": True,
+                    },
+                    {
+                        "name": "started",
+                        "label": "Started",
+                        "field": "started",
+                        "required": True,
+                        "sortable": True,
+                    },
+                    {
+                        "name": "ended",
+                        "label": "Ended",
+                        "field": "ended",
+                        "required": True,
+                        "sortable": True,
+                    },
+                    {
+                        "name": "elapsed_hms",
+                        "label": "Elapsed",
+                        "field": "elapsed_hms",
+                        "required": True,
+                    },
+                    {
+                        "name": "end_activity",
+                        "label": "Action",
+                        "field": "end_activity",
+                        "required": True,
+                    },
+                ],
+                rows=activities_rows,
+                row_key="id",
+            ).classes("w-full")
+
+        def apply_activities_filter() -> None:
+            start_date, exact_start = parse_filter_datetime(
+                start_date_input.value,
+                start_time_input.value,
+                "Start",
+            )
+            if start_date is None:
+                return
+
+            end_date, exact_end = parse_filter_datetime(
+                end_date_input.value,
+                end_time_input.value,
+                "End",
+            )
+            if end_date is None:
+                return
+
+            table.rows = build_activity_rows(
+                start_date=start_date,
+                end_date=end_date,
+                exact_start=exact_start,
+                exact_end=exact_end,
+            )
+            table.update()
+
+        def clear_activities_filter() -> None:
+            start_date_input.value = today
+            start_time_input.value = None
+            end_date_input.value = today
+            end_time_input.value = None
+            apply_activities_filter()
+
+        with filter_actions_row:
+            ui.button("Apply Filter", on_click=apply_activities_filter).props(
+                "dense"
+            ).classes("text-xs px-2 py-1")
+            ui.button("Clear Filter", on_click=clear_activities_filter).props(
+                "dense"
+            ).classes("text-xs px-2 py-1")
 
         table.add_slot(
             "body-cell-started",
             """
             <q-td :props="props">
-                <a href="#" class="text-primary" @click.prevent="$parent.$emit('on-edit_started', props.row.id)">
+                <a v-if="!props.row.is_summary" href="#" class="text-primary" @click.prevent="$parent.$emit('on-edit_started', props.row.id)">
                     {{ props.value ? props.value : 'Set Started' }}
                 </a>
             </q-td>
@@ -608,7 +772,7 @@ def activities():
             "body-cell-ended",
             """
             <q-td :props="props">
-                <a href="#" class="text-primary" @click.prevent="$parent.$emit('on-edit_ended', props.row.id)">
+                <a v-if="!props.row.is_summary" href="#" class="text-primary" @click.prevent="$parent.$emit('on-edit_ended', props.row.id)">
                     {{ props.value ? props.value : 'Set Ended' }}
                 </a>
             </q-td>
@@ -620,7 +784,7 @@ def activities():
             "body-cell-end_activity",
             """
             <q-td :props="props">
-                <a href="#" class="text-primary" @click.prevent="$parent.$emit('on-end_activity', props.row.id)">
+                <a v-if="!props.row.is_summary" href="#" class="text-primary" @click.prevent="$parent.$emit('on-end_activity', props.row.id)">
                     End Activity
                 </a>
             </q-td>
