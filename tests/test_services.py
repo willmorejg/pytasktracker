@@ -140,3 +140,9 @@ class TestServices:
         assert activity.description == description
 
         model_values.activities.append(activity)
+
+        activities = services.get_filtered_activities()
+        assert len(activities) == 1
+        assert activities[0][0].id == activity.id
+        assert activities[0][1].id == task.id
+        assert activities[0][2].id == task_group.id

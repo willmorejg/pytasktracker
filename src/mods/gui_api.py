@@ -552,7 +552,7 @@ def activities():
             "ended": activity.ended,
             "elapsed_hms": activity.elapsed_hms,
         }
-        for activity, task, task_group in rest_api.service.get_all_activities()
+        for activity, task, task_group in rest_api.service.get_filtered_activities()
     ]
 
     menu()
