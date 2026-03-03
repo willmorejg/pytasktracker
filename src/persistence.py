@@ -221,7 +221,7 @@ class Persistence:
             list[tuple[Activity, Task, TaskGroup]]: The activities with their task and task group.
         """
         logger.info(
-            "Fetching all activities from database",
+            "Fetching filtered activities from database",
             extra={"start_date": started_start_date, "end_date": started_end_date},
         )
         with self.get_session() as session:
@@ -234,7 +234,6 @@ class Persistence:
                     (col(Activity.started) <= started_end_date),
                 )
             )
-            logger.debug("executing statement:", extra={"statement": str(statement)})
             return session.exec(statement).all()  # type: ignore
 
     def fetch_activity(

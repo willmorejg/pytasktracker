@@ -380,6 +380,11 @@ async def end_activity(activity_id: str) -> bool:
     return True
 
 
+@app.get(
+    "/activities/filtered",
+    summary="Get filtered activities",
+    description="Retrieve a list of activities filtered by start and end date.",
+)
 async def get_filtered_activities(
     start_date: datetime | None = None,
     end_date: datetime | None = None,
