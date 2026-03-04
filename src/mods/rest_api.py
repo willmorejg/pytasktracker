@@ -292,7 +292,14 @@ async def update_task(task: Task) -> Task:
     Returns:
         Task: The updated task.
     """
-    return service.modify_task(task=task)
+    result = service.get_task_by_id(task.id)
+    if result is None:
+        raise BaseAppException(f"Task '{task.id}' not found.", status_code=404)
+    existing_task, _ = result
+    existing_task.name = task.name
+    existing_task.description = task.description
+    existing_task.show = task.show
+    return service.modify_task(task=existing_task)
 
 
 @app.patch(
