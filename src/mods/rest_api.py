@@ -31,6 +31,17 @@ app = FastAPI()
 service = Services()
 
 
+class TaskDisplay(SQLModel):
+    """Display model for task responses."""
+
+    id: str
+    name: str
+    description: str | None
+    group_id: str
+    group: str
+    show: bool
+
+
 class ActivityDisplay(SQLModel):
     """Display model for activity responses."""
 
@@ -204,13 +215,23 @@ async def enable_task_group(task_group_id: str) -> bool:
     summary="Get all tasks with show is True",
     description="Retrieve a list of all tasks with show is True.",
 )
-async def get_tasks_visible() -> list[tuple[Task, TaskGroup]]:
+async def get_tasks_visible() -> list[TaskDisplay]:
     """Endpoint to retrieve all tasks with show is True.
 
     Returns:
-        list[tuple[Task, TaskGroup]]: A list of all tasks with show is True.
+        list[TaskDisplay]: A list of all tasks with show is True.
     """
-    return service.get_all_tasks(show=True)
+    return [
+        TaskDisplay(
+            id=task.id,
+            name=task.name,
+            description=task.description,
+            group_id=task.group_id,
+            group=task_group.name,
+            show=task.show,
+        )
+        for task, task_group in service.get_all_tasks(show=True)
+    ]
 
 
 @app.get(
@@ -218,13 +239,23 @@ async def get_tasks_visible() -> list[tuple[Task, TaskGroup]]:
     summary="Get all tasks",
     description="Retrieve a list of all tasks.",
 )
-async def get_all_tasks() -> list[tuple[Task, TaskGroup]]:
+async def get_all_tasks() -> list[TaskDisplay]:
     """Endpoint to retrieve all tasks.
 
     Returns:
-        list[tuple[Task, TaskGroup]]: A list of all tasks.
+        list[TaskDisplay]: A list of all tasks.
     """
-    return service.get_all_tasks(show=False)
+    return [
+        TaskDisplay(
+            id=task.id,
+            name=task.name,
+            description=task.description,
+            group_id=task.group_id,
+            group=task_group.name,
+            show=task.show,
+        )
+        for task, task_group in service.get_all_tasks(show=False)
+    ]
 
 
 @app.post(
