@@ -81,6 +81,37 @@ def test_task_group_enable_endpoint_sets_show_true(client):
     assert enabled_group["show"] is True
 
 
+def test_update_task_description(client):
+    """PUT /tasks updates mutable fields without duplicating or losing created_at."""
+    task_group = rest_api.service.create_task_group(
+        name=f"Update Task Group {uuid4()}", description="update test"
+    )
+    task = rest_api.service.create_task(
+        task_group=task_group,
+        name=f"Original Task {uuid4()}",
+        description=None,
+    )
+
+    response = client.put(
+        "/tasks",
+        json={
+            "id": task.id,
+            "name": task.name,
+            "description": "Updated description",
+            "group_id": task.group_id,
+            "show": task.show,
+        },
+    )
+    assert response.status_code == 200
+
+    result = rest_api.service.get_task_by_id(task.id)
+    assert result is not None
+    updated_task, _ = result
+    assert updated_task.description == "Updated description"
+    assert updated_task.name == task.name
+    assert updated_task.created_at is not None
+
+
 def test_activities_endpoint_returns_elapsed_hms(client):
     """Verify the activities display payload exposes elapsed_hms instead of elapsed."""
     task_group = rest_api.service.create_task_group(
