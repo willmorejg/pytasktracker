@@ -121,7 +121,7 @@ class CLI:
 
                 from mods.rest_api import app
 
-                uvicorn.run(app, host="127.0.0.1", port=port_selected, reload=True)
+                uvicorn.run(app, host="127.0.0.1", port=port_selected)
                 logger.info("Running in REST mode.")
             case ApplicationMode.GUI.value:
                 from mods.gui_api import GuiApp
