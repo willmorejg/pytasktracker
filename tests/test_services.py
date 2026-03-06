@@ -14,6 +14,7 @@
 """Tests for the service layer of the application."""
 
 from dataclasses import dataclass
+from uuid import uuid4
 
 import pytest
 
@@ -115,6 +116,18 @@ class TestServices:
 
         services.undelete_task(task=task)
 
+        services.soft_delete_task_by_id(task_id=task.id)
+
+        ref_task = services.get_task_by_id(task_id=task.id)
+        assert ref_task is not None
+
+        services.undelete_task_by_id(task_id=task.id)
+
+        tasks = services.get_all_tasks()
+        assert len(tasks) == 1
+
+        services.undelete_task(task=task)
+
         name = "Updated Test Task"
         task.name = name
         updated_task = services.modify_task(task=task)
@@ -123,6 +136,17 @@ class TestServices:
         assert updated_task.description == description
 
         model_values.task = updated_task
+
+        tasks = services.get_all_tasks(show=False)
+        assert len(tasks) == 1
+        print(f"Retrieved tasks: {tasks}")
+        first_task = tasks[0][0]
+        assert first_task.id == model_values.task.id
+        assert first_task.name == model_values.task.name
+        assert first_task.description == model_values.task.description
+        assert first_task.group_id == model_values.task.group_id
+
+        model_values.task = first_task
 
     @pytest.mark.order(3)
     def test_modify_activities(self, services, model_values):
@@ -146,3 +170,19 @@ class TestServices:
         assert activities[0][0].id == activity.id
         assert activities[0][1].id == task.id
         assert activities[0][2].id == task_group.id
+
+        activity = services.end_activity_by_id(activity_id=activity.id)
+
+        activities = services.get_filtered_activities(
+            start_date=activity.started,
+            exact_start=True,
+            end_date=activity.ended,
+            exact_end=True,
+        )
+        assert len(activities) == 1
+        assert activities[0][0].id == activity.id
+        assert activities[0][1].id == task.id
+        assert activities[0][2].id == task_group.id
+
+        activity = services.end_activity_by_id(activity_id=uuid4())
+        assert activity is None

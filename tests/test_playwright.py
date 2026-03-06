@@ -11,25 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Initialization module for the application."""
-from .datetime_utilities import (
-    end_of_day,
-    get_current_time,
-    start_of_day,
-)
-from .logging_config import configure_logging
-from .models import Activity, Task, TaskGroup
-from .persistence import Persistence
 
-__version__ = "0.1.0"
+import re
+from playwright.sync_api import Page, expect
 
-__all__ = [
-    "configure_logging",
-    "get_current_time",
-    "end_of_day",
-    "start_of_day",
-    "Activity",
-    "Task",
-    "TaskGroup",
-    "Persistence",
-]
+
+def test_has_title(page: Page, base_url: str):
+    page.goto(f"{base_url}/")
+
+    # Expect a title "to contain" a substring.
+    expect(page).to_have_title(re.compile("NiceGUI"))

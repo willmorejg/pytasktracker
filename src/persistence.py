@@ -62,8 +62,12 @@ class Persistence:
         """
         if isinstance(model, Activity):
             if model.started is not None:
+                if isinstance(model.started, str):
+                    model.started = datetime.fromisoformat(model.started)
                 model.started = model.started.replace(microsecond=0)
             if model.ended is not None:
+                if isinstance(model.ended, str):
+                    model.ended = datetime.fromisoformat(model.ended)
                 model.ended = model.ended.replace(microsecond=0)
             model.elapsed = (
                 int((model.ended - model.started).total_seconds())
