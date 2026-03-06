@@ -292,9 +292,7 @@ def menu_navigate(path: str, drawer: ui.right_drawer):
 
 def menu():
     """Menu for the GUI."""
-    with (
-        ui.right_drawer().classes("bg-blue-100").props("id=menu-drawer") as right_drawer
-    ):
+    with ui.right_drawer(value=False).classes("bg-blue-100") as right_drawer:
         ui.menu_item(
             "Manage Task Groups",
             on_click=lambda: menu_navigate("/task_groups", right_drawer),
@@ -307,8 +305,6 @@ def menu():
             "Manage Activities",
             on_click=lambda: menu_navigate("/activities", right_drawer),
         )
-
-    right_drawer.set_value(False)
 
     with ui.header().classes("items-center"):
         ui.link("My Application", target="/").style(
