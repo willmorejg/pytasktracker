@@ -18,7 +18,6 @@ from datetime import datetime
 from fastapi.responses import JSONResponse
 from nicegui import app, ui
 
-from datetime_utilities import build_datetime
 from logging_config import configure_logging
 from mods import rest_api
 
@@ -26,6 +25,26 @@ logger = configure_logging()
 
 _PAGE_COLUMN_CLASSES = "items-center w-full"
 _PAGE_HEADING_CLASSES = "text-2xl font-bold mb-4"
+
+
+def _build_datetime(
+    date_input,
+    time_input,
+    result_label,
+) -> datetime | None:
+    """Combine date and time inputs into a single datetime object."""
+    try:
+        combined_datetime_str = f"{date_input.value} {time_input.value}"
+        combined_datetime_obj = datetime.strptime(
+            combined_datetime_str, "%Y-%m-%d %H:%M"
+        )
+        result_label.set_text(
+            f"Selected Datetime: {combined_datetime_obj.isoformat(sep=' ')}"
+        )
+        return combined_datetime_obj
+    except ValueError:
+        result_label.set_text("Invalid date/time combination")
+        return None
 
 
 @app.get("/.well-known/appspecific/com.chrome.devtools.json", include_in_schema=False)
@@ -55,18 +74,18 @@ async def pick_datetime_dialog(
         result_label = ui.label()
 
         def submit_datetime():
-            selected_datetime = build_datetime(date_input, time_input, result_label)
+            selected_datetime = _build_datetime(date_input, time_input, result_label)
             if selected_datetime is None:
                 return
             dialog.submit(selected_datetime)
 
         date_input.on(
-            "change", lambda _e: build_datetime(date_input, time_input, result_label)
+            "change", lambda _e: _build_datetime(date_input, time_input, result_label)
         )
         time_input.on(
-            "change", lambda _e: build_datetime(date_input, time_input, result_label)
+            "change", lambda _e: _build_datetime(date_input, time_input, result_label)
         )
-        build_datetime(date_input, time_input, result_label)
+        _build_datetime(date_input, time_input, result_label)
 
         with ui.row().classes("justify-end w-full"):
             ui.button("Cancel", color="red", on_click=lambda: dialog.submit(None))
@@ -273,7 +292,9 @@ def menu_navigate(path: str, drawer: ui.right_drawer):
 
 def menu():
     """Menu for the GUI."""
-    with ui.right_drawer().classes("bg-blue-100") as right_drawer:
+    with (
+        ui.right_drawer().classes("bg-blue-100").props("id=menu-drawer") as right_drawer
+    ):
         ui.menu_item(
             "Manage Task Groups",
             on_click=lambda: menu_navigate("/task_groups", right_drawer),
@@ -535,7 +556,9 @@ def task_groups():
             "body-cell-toggle",
             """
             <q-td :props="props">
-                <a href="#" class="text-primary" @click.prevent="$parent.$emit('toggle_show', props.row.id)">
+                <a href="#" 
+                    class="text-primary" 
+                    @click.prevent="$parent.$emit('toggle_show', props.row.id)">
                     {{ props.value }}
                 </a>
             </q-td>
@@ -626,7 +649,8 @@ def tasks():
             "body-cell-toggle",
             """
             <q-td :props="props">
-                <a href="#" class="text-primary" @click.prevent="$parent.$emit('toggle_show', props.row.id)">
+                <a href="#" class="text-primary" 
+                    @click.prevent="$parent.$emit('toggle_show', props.row.id)">
                     {{ props.value }}
                 </a>
             </q-td>
@@ -760,7 +784,9 @@ def activities():
             "body-cell-started",
             """
             <q-td :props="props">
-                <a v-if="!props.row.is_summary" href="#" class="text-primary" @click.prevent="$parent.$emit('on-edit_started', props.row.id)">
+                <a v-if="!props.row.is_summary" href="#" 
+                    class="text-primary" 
+                    @click.prevent="$parent.$emit('on-edit_started', props.row.id)">
                     {{ props.value ? props.value : 'Set Started' }}
                 </a>
             </q-td>
@@ -772,7 +798,9 @@ def activities():
             "body-cell-ended",
             """
             <q-td :props="props">
-                <a v-if="!props.row.is_summary" href="#" class="text-primary" @click.prevent="$parent.$emit('on-edit_ended', props.row.id)">
+                <a v-if="!props.row.is_summary" href="#" 
+                    class="text-primary" 
+                    @click.prevent="$parent.$emit('on-edit_ended', props.row.id)">
                     {{ props.value ? props.value : 'Set Ended' }}
                 </a>
             </q-td>
@@ -784,7 +812,9 @@ def activities():
             "body-cell-end_activity",
             """
             <q-td :props="props">
-                <a v-if="!props.row.is_summary" href="#" class="text-primary" @click.prevent="$parent.$emit('on-end_activity', props.row.id)">
+                <a v-if="!props.row.is_summary" href="#" 
+                    class="text-primary" 
+                    @click.prevent="$parent.$emit('on-end_activity', props.row.id)">
                     End Activity
                 </a>
             </q-td>
@@ -803,7 +833,11 @@ class GuiApp:
         self.app.include_router(self.rest_api_app.router, prefix="/api")
 
     def start_gui(self, port: int = 8989, host: str = "127.0.0.1"):
-        """Start the GUI. NOTE: there is an issue using 'reload=True' with the FastAPI router, so we set it to False for now."""
+        """
+        Start the GUI.
+        NOTE: there is an issue using 'reload=True' with the FastAPI router,
+        so we set it to False for now.
+        """
         ui.run(
             port=port,
             host=host,
