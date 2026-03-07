@@ -18,6 +18,10 @@
 
 A task and activity tracking application with three operation modes: a web-based GUI, a REST API, and a CLI. Built on DuckDB, SQLModel, FastAPI, and NiceGUI.
 
+## Documentation
+
+Full API documentation is available at **[willmorejg.github.io/pytasktracker](https://willmorejg.github.io/pytasktracker/)**.
+
 ## Features
 
 - Organize work into **Task Groups** and **Tasks**
@@ -36,7 +40,7 @@ A task and activity tracking application with three operation modes: a web-based
 ## Installation
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/willmorejg/pytasktracker.git
 cd pytasktracker
 uv sync
 ```
@@ -156,6 +160,7 @@ pytasktracker/
 │   ├── test_persistence.py
 │   ├── test_services.py
 │   └── test_rest_api.py
+├── docs/                   # Sphinx documentation source
 ├── logs/                   # Rotating JSON log files
 └── rest.http               # Example HTTP requests
 ```
