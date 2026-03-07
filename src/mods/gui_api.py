@@ -833,8 +833,7 @@ class GuiApp:
         self.app.include_router(self.rest_api_app.router, prefix="/api")
 
     def start_gui(self, port: int = 8989, host: str = "127.0.0.1"):
-        """
-        Start the GUI.
+        """Start the GUI.
         NOTE: there is an issue using 'reload=True' with the FastAPI router,
         so we set it to False for now.
         """
