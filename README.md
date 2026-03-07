@@ -20,7 +20,7 @@ A task and activity tracking application with three operation modes: a web-based
 
 ## Documentation
 
-Full API documentation is available at <a href="https://willmorejg.github.io/pytasktracker/" target="_blank" rel="noopener noreferrer">willmorejg.github.io/pytasktracker</a>.
+Full API documentation is available at <a href="https://willmorejg.github.io/pytasktracker/" target="_blank">willmorejg.github.io/pytasktracker</a>.
 
 
 ## Features
