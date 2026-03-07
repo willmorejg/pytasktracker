@@ -15,8 +15,10 @@
 
 import logging
 import sys
+from typing import cast
 
 from loguru import logger
+from loguru._logger import Logger as LoguruLogger
 
 
 class InterceptHandler(logging.Handler):
@@ -39,8 +41,21 @@ class InterceptHandler(logging.Handler):
         )
 
 
-def configure_logging():
-    """Configure logging for the application."""
+def configure_logging() -> LoguruLogger:
+    """Configure logging for the application.
+
+    Sets up loguru logger with two handlers:
+
+    - File handler: Writes DEBUG level logs to logs/pytasktracker.log with weekly rotation, 4-week retention, and JSON serialization for structured logging
+
+    - Console handler: Writes INFO level logs to stdout with diagnostic information
+
+    Additionally routes standard library logging (including uvicorn logs) through
+    loguru's InterceptHandler for unified logging across the application.
+
+    Returns:
+        LoguruLogger: Configured loguru logger instance ready for use throughout the application.
+    """
     logger.remove()  # Remove the default logger
     logger.add(
         "logs/pytasktracker.log",
@@ -66,4 +81,4 @@ def configure_logging():
         logging.getLogger(name).handlers = [InterceptHandler()]
         logging.getLogger(name).propagate = False
 
-    return logger
+    return cast(LoguruLogger, logger)
