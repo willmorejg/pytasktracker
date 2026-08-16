@@ -17,4 +17,4 @@ jobs:
       - name: Deploy Folder to Wiki
         uses: Andrew-Chen-Wang/github-wiki-action@v4
         with:
-          wiki_folder: .wiki
+          path: .wiki
